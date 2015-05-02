@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>USI Kolonization Systems Efficiency Calculator</title>
+    <script src="calc.js" type="text/javascript"></script>
+    <style type="text/css">
+      tr.source { background-color:orange; }
+    </style>
+  </head>
+  <body>
+    <h1>USI Kolonization Systems Calculator</h1>
+
+    <p>
+      <a href="http://forum.kerbalspaceprogram.com/threads/79588-0-24-2-USI-Kolonization-Systems">USI
+      Kolonization Systems</a> is an addon that provides an option to
+      build 100% self-sufficient bases on other planetary bodies.
+      <br>
+      It packs a lot of modules that depend on each other. This site
+      helps you with planning bases.
+    </p>
+    <p>
+      If you want to run for example a Modular factory at 150%
+      capacity, enter '150' in the respective input field. The other
+      rows will adjust and show you:
+      <ul>
+        <li>above: the requirements, that are necessary for this efficiency to be supported</li>
+        <li>below: the efficiencies this module can support.</li>
+      </ul>
+    </p>
+
+    <form>
+      <table>
+        <tr>
+          <td>Colony Control Center</td>
+          <td><input style="background-color:#ccc" id="ccc" type="text" value="0" readonly> %</td>
+        </tr>
+        <tr>
+          <td>Substrate Extractor</td>
+          <td>
+            <input id="substrate" type="text" value="0" onkeyup="onInput(this);">
+            <input value="mT/h" type="button" onclick="toggleInputType(this);">
+          </td>
+        </tr>
+        <tr>
+          <td>Minerals Extractor</td>
+          <td>
+            <input id="minerals" type="text" value="0" onkeyup="onInput(this);" >
+            <input value="mT/h" type="button" onclick="toggleInputType(this);">
+          </td>
+        </tr>
+        <tr>
+          <td>Ore Extractor</td>
+          <td>
+            <input id="ore" type="text" value="0" onkeyup="onInput(this);" >
+            <input value="mT/h" type="button" onclick="toggleInputType(this);">
+          </td>
+        </tr>
+        <tr>
+          <td>Water Extractor</td>
+          <td>
+            <input id="water" type="text" value="0" onkeyup="onInput(this);">
+            <input value="mT/h" type="button" onclick="toggleInputType(this);">
+          </td>
+        </tr>
+        <tr>
+          <td>BioLab</td>
+          <td><input id="biolab" type="text" value="0" onkeyup="onInput(this);" > %</td>
+        </tr>
+        <tr>
+          <td>Refinery Efficiency</td>
+          <td><input id="refinery" type="text" value="0" onkeyup="onInput(this);" > %</td>
+        </tr>
+        <tr>
+          <td>Fabrication Module Efficiency</td>
+          <td><input id="fabrication" type="text" value="0" onkeyup="onInput(this);" > %</td>
+        </tr>
+        <tr>
+          <td>Modular Factory Efficiency</td>
+          <td><input id="modular" type="text" value="0" onkeyup="onInput(this);" > %</td>
+        </tr>
+        <tr>
+          <td>Assembly Efficiency</td>
+          <td><input id="assembly" type="text" value="0" onkeyup="onInput(this);" > %</td>
+        </tr>
+
+      </table>
+    </form>
+    <p>
+      If I understand it correctly the rails mechanic calculates
+      resource consumption and production in steps of 6 hours (1
+      Kerbal day).
+
+      The refinery consumes 0.51 units per second while running at
+      100% - or 11016 units per day.  This would require 5
+      Mining/Agriculture ILMs (with a storage capacity of 2333 each)
+      in the base for the refinery to run smoothly on rails.
+
+      Or to put it the other way round, a refinery with a sinlge ILM
+      runs on rails at most at an efficiency of 21.2%.
+
+      This seems to be a little bit off. Is this intentional?
+    </p>
+  </body>
+</html>
+If I understand it correctly the rails mechanic calculates resource
+consumption and production in steps of 6 hours (1 Kerbal day).
+
+The refinery consumes 0.51 units per second while running at 100% - or
+11016 units per day.  This would require 5 Mining/Agriculture ILMs
+(with a storage capacity of 2333 each) in the base for the refinery to
+run smoothly on rails.
+
+Or to put it the other way round, a refinery with a sinlge ILM runs on
+rails at most at an efficiency of 21.2%.
+
+This seems to be a little bit off. Is this intentional?
+(+ 33 36 33 41) 66)

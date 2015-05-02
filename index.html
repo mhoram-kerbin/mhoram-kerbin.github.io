@@ -1,7 +1,21 @@
 <!DOCTYPE html>
 <html>
 <body>
-<h1>Hello World</h1>
-<p>Initial Commit</p>
+<h1>Ideal Inclination Change calculator</h1>
+
+<p>
+You can use this site to calculate the most efficient way to change
+the inclination without SOI changes.<br>
+Atmosphere is not taken into account.
+</p>
+
+<p>
+<form>
+  <input name="body" type="text" value="Kerbin" readonly> Planetary Body<br>
+  <input name="alt" type="text"> Altitude of current circular orbit in m above surface<br>
+  <input name="incl" type="text"> Intended Change of inclination in <a href="http://en.wikipedia.org/wiki/Degree_%28angle%29">Degree</a> (0 &#x2264; value &#x2264; 180)<br>
+  <input type="submit" value="Calculate"><br>
+</form>
+</p>
 </body>
 </html>

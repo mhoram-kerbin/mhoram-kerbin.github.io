@@ -1,21 +1,57 @@
 <!DOCTYPE html>
 <html>
-<body>
-<h1>Ideal Inclination Change calculator</h1>
+  <head>
+    <script type="text/javascript">
+      function cp (a, alt, rad) {
+      var res = a;
+      if (alt) {
+      res = 1000*res + rad;
+      }
+      return res;
+      }
+      function vv (self, planet, pe, apo, r) {
+      var a = (pe + apo)/2;
+      return Math.sqrt(self.G * planet.mass * (2 / r - 2 / (pe + apo)));
+      }
+      function AppViewModel() {
+      this.G = 6.674e-11;
+      this.planet = {Kerbin: { name: "Kerbin", radius: 600000, mass: 5.2915793e22 }}
+      this.periapsis   = ko.observable(75);
+      this.peAltitude  = ko.observable(true);
+      this.apoapsis    = ko.observable(75);
+      this.apoAltitude = ko.observable(true);
+      this.peRadius    = ko.pureComputed(function() { return cp(this.periapsis(), this.peAltitude(), 600000);}, this);
+      this.apoRadius   = ko.pureComputed(function() { return cp(this.apoapsis(), this.apoAltitude(), 600000);}, this);
+      this.vPe = ko.pureComputed(function() { return vv(this, this.planet.Kerbin, this.peRadius(), this.apoRadius(), this.peRadius()); }, this);
+      this.vApo = ko.pureComputed(function() { return vv(this, this.planet.Kerbin, this.peRadius(), this.apoRadius(), this.apoRadius()); }, this);
+      this.cPe = ko.pureComputed(function() { return Math.abs(this.vPe() - vv(this, this.planet.Kerbin, this.peRadius(), this.peRadius(), this.peRadius()));}, this);
+      this.cApo = ko.pureComputed(function() { return Math.abs(this.vApo() - vv(this, this.planet.Kerbin, this.apoRadius(), this.apoRadius(), this.apoRadius()));}, this);
+      this.transferBurn = ko.pureComputed(function() { return this.cApo() + this.cPe();}, this);
+      }
+    </script>
+  </head>
+  <body>
+    <h1>Orbital Calculations</h1>
 
-<p>
-You can use this site to calculate the most efficient way to change
-the inclination without SOI changes.<br>
-Atmosphere is not taken into account.
-</p>
+    <p>
+      <div><input name="body" type="text" value="Kerbin" readonly> Planetary Body<br></div>
+      <div>Periapsis: <input data-bind="value: periapsis" /> km <input type="checkbox" data-bind="checked: peAltitude" />Altitude</div>
+      <div>Apoapsis: <input data-bind="value: apoapsis" /> km <input type="checkbox" data-bind="checked: apoAltitude" />Altitude</div>
+    </p>
+    <p>
+      Result
+      <div>Pe <span data-bind="text: peRadius" /> m</div>
+      <div>Ap <span data-bind="text: apoRadius" /> m</div>
+      <div>V(Pe) <span data-bind="text: vPe" /> m/s</div>
+      <div>V(Apo) <span data-bind="text: vApo" /> m/s</div>
+      <div>C(Pe) <span data-bind="text: cPe" /> m/s</div>
+      <div>C(Apo) <span data-bind="text: cApo" /> m/s</div>
+      <div>transferBurn <span data-bind="text: transferBurn" /> m/s</div>
+    </p>
 
-<p>
-<form>
-  <input name="body" type="text" value="Kerbin" readonly> Planetary Body<br>
-  <input name="alt" type="text"> Altitude of current circular orbit in m above surface<br>
-  <input name="incl" type="text"> Intended Change of inclination in <a href="http://en.wikipedia.org/wiki/Degree_%28angle%29">Degree</a> (0 &#x2264; value &#x2264; 180)<br>
-  <input type="submit" value="Calculate"><br>
-</form>
-</p>
-</body>
+    <script type='text/javascript' src='knockout-3.3.0.js'></script>
+    <script type="text/javascript">
+      ko.applyBindings(new AppViewModel());
+    </script>
+  </body>
 </html>

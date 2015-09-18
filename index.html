@@ -35,18 +35,18 @@
 
     <p>
       <div><input name="body" type="text" value="Kerbin" readonly> Planetary Body<br></div>
-      <div>Periapsis: <input data-bind="value: periapsis" /> km <input type="checkbox" data-bind="checked: peAltitude" />Altitude</div>
-      <div>Apoapsis: <input data-bind="value: apoapsis" /> km <input type="checkbox" data-bind="checked: apoAltitude" />Altitude</div>
+      <div>Periapsis: <input data-bind="textInput: periapsis" /> km <input type="checkbox" data-bind="checked: peAltitude" />Altitude</div>
+      <div>Apoapsis: <input data-bind="textInput: apoapsis" /> km <input type="checkbox" data-bind="checked: apoAltitude" />Altitude</div>
     </p>
     <p>
       Result
-      <div>Pe <span data-bind="text: peRadius" /> m</div>
-      <div>Ap <span data-bind="text: apoRadius" /> m</div>
-      <div>V(Pe) <span data-bind="text: vPe" /> m/s</div>
-      <div>V(Apo) <span data-bind="text: vApo" /> m/s</div>
-      <div>C(Pe) <span data-bind="text: cPe" /> m/s</div>
-      <div>C(Apo) <span data-bind="text: cApo" /> m/s</div>
-      <div>transferBurn <span data-bind="text: transferBurn" /> m/s</div>
+      <div>Pe <span data-bind="text: peRadius"></span> m</div>
+      <div>Ap <span data-bind="text: apoRadius"></span> m</div>
+      <div>V(Pe) <span data-bind="text: vPe"></span> m/s</div>
+      <div>V(Apo) <span data-bind="text: vApo"></span> m/s</div>
+      <div>C(Pe) <span data-bind="text: cPe"></span> m/s</div>
+      <div>C(Apo) <span data-bind="text: cApo"></span> m/s</div>
+      <div>transferBurn <span data-bind="text: transferBurn"></span> m/s</div>
     </p>
 
     <script type='text/javascript' src='knockout-3.3.0.js'></script>

@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<!-- LICENSE NOTICE
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see http://www.gnu.org/licenses/.
+
+***
+
+Third-party included JavaScript libraries are copyright their respective
+owners and are used under the term of the corresponding licenses:
+
+Bootstrap is copyright (c) 2015 Twitter and is used under the MIT License;
+see https://github.com/twbs/bootstrap/blob/master/LICENSE for the full
+license notice.
+
+Paper.js is copyright (c) 2011 Juerg Lehni & Jonathan Puckey, and is used
+under the permissive MIT License; see http://paperjs.org/license/ for more
+information.
+
+jquery is copyright (c) 2015 The jQuery Foundation and is used under the
+MIT License; see https://jquery.org/license/ for more information.
+
+Glyphicons are copyright (c) 2010-2015 Jan Kovarik, and are used under the
+terms of the Creative Commons Attribution 3.0 Unported (CC BY 3.0) license;
+see http://glyphicons.com/license/ for more information.
+
+-->
+
+<link href="favicon.ico" rel="shortcut icon" type="image/x-icon" />
+<title>KSP Engine Charts</title>
+
+<!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+<script src="js/jquery.min.js"></script>
+
+<!-- Include all compiled plugins (below), or include individual files as needed -->
+<script src="js/bootstrap.min.js"></script>
+
+<!-- Bootstrap styles -->
+<link href="css/bootstrap.min.css" rel="stylesheet">
+
+<!-- Custom styles -->
+<link href="css/styles.css" rel="stylesheet">
+
+<!-- Load the Paper.js library -->
+<script type="text/javascript" src="js/paper-full.min.js"></script>
+
+<!-- Load JavaScript -->
+<script type="text/javascript" src="code/atmosphereCurve.js"></script>
+<script type="text/javascript" src="code/engine.js"></script>
+<script type="text/javascript" src="code/globals.js"></script>
+<script type="text/javascript" src="code/calculations.js"></script>
+<script type="text/javascript" src="code/inputform.js"></script>
+<script type="text/javascript" src="code/detailspanel.js"></script>
+<script type="text/javascript" src="code/enginechart.js"></script>
+
+<!-- Define inlined PaperScript and associate it with myCanvas -->
+<script type="text/javascript" canvas="myCanvas">
+ 
+  // Add canvas to global scope
+  paper.install(window);
+
+  // Initializations
+  window.onload = function () {
+
+    console.log("Startup ...");
+
+    var canvas = document.getElementById('myCanvas');
+    paper.setup(canvas);
+    
+    // tick symbol
+    var foo = Path.Line(new Point(0,0), new Point(0,ticklength))
+    foo.style = {strokeColor: 'black'};
+    tickSymbol = new Symbol(foo);
+    foo.remove();
+
+    // gridline symbol
+    var foo = Path.Line(new Point(0,0), new Point(0,mapy-2*ticklength))
+    foo.strokeColor = new Color(0,0,0,0.5);
+    foo.dashArray = [2,4];
+    foo.dashOffset = 6;
+    foo.alpha = 0.5;
+    gridlineSymbol = new Symbol(foo);
+    foo.remove();
+
+    // Initialize chart area
+    
+    // Chart box
+    var topleft = new Point(chartoffset, view.center.y-mapy/2);
+    var bottomright = new Point(chartoffset+mapx, view.center.y+mapy/2);
+    chartbox = new Rectangle(topleft, bottomright);
+    chartboxPath = new Path.Rectangle(chartbox);
+    chartboxPath.strokeColor = "black";
+    
+    // Define layers
+    chartLayer = new Layer();
+    colorkeyLayer = new Layer();
+    
+    // Add placeholder text to chart box
+    var message = new PointText({
+      point: chartbox.center,
+      justification: 'center',
+      fillColor: 'black',
+      content: 'Fill in values above and click \'Calculate!\'',
+      fontSize: fontSize-1
+    });
+    
+    // Initialize misc vars
+    detailsLocked = false;
+    hairlineH = new Path.Line();
+    hairlineV = new Path.Line();
+    document.getElementById("lockedTooltip").style.visibility = "hidden";    
+    
+    // Settings recall cache
+    recallCache = [];
+    recallIdx = -1;
+    
+    paper.view.draw();
+  
+    // Set colors to engines
+    for (var i=0; i < allEngines.length; i++) {
+      allEngines[i].color = palette[i%palette.length];
+    }
+    console.log(allEngines.length + " engines loaded");
+    console.log(allEngines);
+
+    // Default fixed var
+    setFixedVar("Payload");
+
+    console.log("Ready.");
+
+  }
+
+  // Enable tooltips
+  $(document).ready(function(){
+    $('[data-toggle="tooltip"]').tooltip(); 
+  });
+
+</script>
+
+<!---------------------------------------------------------------->
+
+</head>
+<body>
+  <div class="container">
+  
+    <header class="page-header">
+    <h1>Optimal Engine Charts <small>for Kerbal Space Program 1.1.1</small></h1>
+    </header>
+ 
+    <div class="row">
+    
+      <form name="parameters" class="form-horizontal">
+      <div class="col-sm-7 col-md-7 col-lg-7">
+      
+        <h4>Chart parameters
+
+        <button class="btn btn-default btn-sm" type="button" data-toggle="collapse" data-target="#CharParametersHelp" aria-expanded="false" aria-controls="collapseExample"><span class="glyphicon glyphicon-question-sign" style="font-size: 18px;"></span></button>
+
+        <!-- Input tooltip -->
+        <div class="collapse" id="CharParametersHelp">
+          <br>
+          <div class="well" style="font-size: 15px;">
+            <h4>Basic Instructions</h4>
+            <ol>
+            <li><strong>Select fixed variable</strong>: set which variable you want to keep fixed out of Payload, Minimum TWR and Delta-v. The other two variables will be on the axes of the plot.</li>
+            <li><strong>[fixed variable]</strong>: set the value of the variable that will remain fixed.
+            <li><strong>[variable] ranges</strong>: set the minimum and maximum values of the variables to plot. These can be changed later directly on the chart.</li>
+            <li><strong>Atmosphere</strong>: set the atmospheric pressure (in atm). Note that many engines have substantially worse efficiencies (Isp) in the atmosphere. Use the Presets dropdown to set the pressure from a list of KSP bodies with atmospheres.</li>
+            <li><strong>Max # of engines</strong>: configure the maximum number of engines allowed in the analysis. Use it to filter out ridiculous solutions with hundreds of engines. Check the Unlimited checkbox if no limit is desired.</li>
+            <li><strong>Chart quality</strong>: if the chart is taking too long to generate (shouldn't take more than a second), set quality to Low (faster).</li>
+            <li><strong>Engine selection</strong>: select the desired engines using the checkboxes on the right of the page.</li>
+            </ol>
+            <p>Click the <strong>Calculate!</strong> button to calculate and plot the chart; further interactivity is provided on the chart itself. Click the <strong>Load example</strong> button to load an example set of chart parameters.</p>
+            <p>For more information on how these charts are calculated or to ask a question about the app, see the <a href="http://forum.kerbalspaceprogram.com/threads/127691-WEB-1-0-4-Optimal-Engine-Charts-interactive-webapp">discussion thread</a> on the KSP forums.</p>
+          </div>
+        </div>
+
+        </h4>
+
+        <!-- Fixed variable selector -->
+        <div class="form-group">
+          <label id="lblFixedVarPills" class="control-label col-sm-3" style="margin-top: 4px;">Fixed variable</label>
+          <div class="col-sm-8">
+            <ul class="nav nav-pills">
+              <li id="pillPayload" class="active"><a data-toggle="tab" href="#tabPayload" onClick="setFixedVar('Payload');">Payload</a></li>
+              <li id="pillTWR"><a data-toggle="tab" href="#tabMinTWR" onClick="setFixedVar('Min TWR');">Min TWR</a></li>
+              <li id="pillDeltav"><a data-toggle="tab" href="#tabDeltaV" onClick="setFixedVar('Delta-v');">Delta-v</a></li>
+            </ul>
+          </div>
+        </div> 
+
+        <!-- Fixed var text inputs -->
+        <div class="form-group">
+          <label id="lblFixedVar" for="txtFixedVar" class="control-label col-sm-3">Payload mass</label>
+          <div class="col-sm-8">
+            <div id="inputgroupVarFixed" class="input-group">
+              <input id="txtFixedVar" type="number" class="form-control" placeholder="fixed payload mass" min="0" step="1">
+              <span id="unitsFixedVar" class="input-group-addon">tonnes</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Var1 text inputs-->
+        <div id="formgroupVar1" class="form-group">
+          <label id="lblVar1" for="txtVar1Min" class="control-label col-sm-3">TWR range</label>
+          <div class="col-sm-8">
+            <div id="inputgroupVar1" class="input-group">
+              <input id="txtVar1Min" type="number" class="form-control" placeholder="min TWR" min="0" step="0.1">
+              <span class="input-group-addon"> to </span>
+              <input id="txtVar1Max" type="number" class="form-control" placeholder="max TWR" min="0" step="0.1">
+              <span id="unitsVar1" class="input-group-addon">relative to</span>
+              <select id="TWRrefSelect" class="form-control" style="min-width:85px; padding-left:5px; padding-right:5px;">
+                <option value="Kerbin">Kerbin</option>
+                <option value="Mun">Mun</option>
+                <option value="Minmus">Minmus</option>
+                <option value="Duna">Duna</option>
+                <option value="Ike">Ike</option>
+                <option value="Eve">Eve</option>
+                <option value="Gilly">Gilly</option>
+                <option value="Moho">Moho</option>
+                <option value="Dres">Dres</option>
+                <option value="Jool">Jool</option>
+                <option value="Laythe">Laythe</option>
+                <option value="Vall">Vall</option>
+                <option value="Tylo">Tylo</option>
+                <option value="Bop">Bop</option>
+                <option value="Pol">Pol</option>
+                <option value="Eeloo">Eeloo</option>
+              </select>      
+            </div>
+          </div>
+        </div>
+
+        <!-- Var2 text inputs -->
+        <div id="formgroupVar2" class="form-group">
+          <label id="lblVar2" for="txtVar2Min" class="control-label col-sm-3">&#916;v range</label>
+          <div class="col-sm-8">
+            <div id="inputgroupVar2" class="input-group">
+              <input id="txtVar2Min" type="number" class="form-control" placeholder="minimum &#916;v" min="0" step="100">
+              <span class="input-group-addon"> to </span>
+              <input id="txtVar2Max" type="number" class="form-control" placeholder="maximum &#916;v" min="0" step="100">
+              <span id="unitsVar2" class="input-group-addon">m/s</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Atmospheric pressure -->
+        <div class="form-group">
+          <label for="atmpres" class="control-label col-sm-3">Atmosphere</label>
+          <div class="col-sm-4">
+            <div class="input-group">
+              <input type="number" class="form-control" id="atmpres" placeholder="pressure" min="0" step="0.1" onChange="updateAtmoPresets()">
+              <span class="input-group-addon">atm</span>
+            </div>
+          </div>
+                 
+          <!-- Atmosphere presets -->
+          <div class="col-sm-4">
+            <div class="input-group">
+            <span class="input-group-addon">Presets:</span>
+              <select class="form-control" id="atmpresetsmenu" onChange="setAtmoPreset()">
+                <option value="" disabled selected style="display:none">Select</option>
+                <option value="custom" disabled style="display:none">Custom</option>    
+                <option value="vacuum">Vacuum</option>
+                <option value="Kerbin">Kerbin</option>
+                <option value="Duna">Duna</option>
+                <option value="Laythe">Laythe</option>
+                <option value="Eve">Eve</option>
+              </select>
+            </div>
+          </div>
+
+        </div>
+            
+        <!-- Max number of engines -->            
+        <div class="form-group">
+          <label for="maxengines" class="control-label col-sm-3">Max # of engines</label>
+          <div class="col-sm-6">
+            <input type="number" class="form-control" id="maxengines" value="10" min="1" step="1">
+          </div>
+          <div class="col-sm-3">
+            <div class="checkbox">
+              <label><input type="checkbox" id="unlimitedchkbox" onChange="toggleunlimited()">Unlimited</label>
+            </div>
+          </div>
+				</div>
+				                 
+        <!-- Chart quality -->                         
+        <div class="form-group">
+          <label for="quality" class="control-label col-sm-3">Chart quality</label>
+          <div class="col-sm-8">
+            <div class="input-group">
+              <label class="radio-inline">
+                <input type="radio" name="quality" value="low">Low (faster)
+              </label>
+              <label class="radio-inline">
+                <input type="radio" name="quality" value="high" checked="checked">High (can be slow)
+              </label>
+            </div>
+					</div>
+				</div>
+
+      </form>
+       
+      <br>
+      <button type="button" id="calculateBtn" class="btn btn-primary" onClick="calculateButton()">
+      Calculate!
+      </button>
+      <button type="button" id="exampleBtn" class="btn btn-default" onClick="load_example()">
+      Load example
+      </button>
+      
+    </div>
+
+    <!----------------------------------------------------------------->
+      
+    <!-- ENGINE SELECTION -->
+      
+    <div class="col-sm-5 col-md-5 col-lg-5">
+      <h4>Engine selection
+
+      <button class="btn btn-default btn-sm" type="button" data-toggle="collapse" data-target="#EngineSelectionHelp" aria-expanded="false" aria-controls="collapseExample"><span class="glyphicon glyphicon-question-sign" style="font-size: 18px;"></span></button>
+
+      <div class="collapse" id="EngineSelectionHelp">
+        <br>
+        <div class="well" style="font-size: 15px;">
+          <ul>
+          <li>Set which engines to include in the computation of the chart. Whole groups can be toggled on or off using the buttons.</li> 
+          <li>Mouse over info icons to see details concerning specific engines.</li>
+          <li>Changes done here do not automatically update the chart; click the <strong>Calculate!</strong> button to do so.</li>
+          </ul>
+        </div>
+      </div>
+
+      </h4>
+      
+      <!-- Medium engines -->
+      <div class="col-sm-3 col-md-3 col-lg-3">
+        <form class="form-horizontal">
+          <label>Medium</label><br>
+          <button type="button" class="btn btn-default btn-xs" onClick="toggleboxes('mediumengines')">Toggle all</button>
+          <div class="input-group">
+            <div class="checkbox">
+              <label><input type="checkbox" name="mediumengines" id="chkLV-909" checked>LV-909<br>"Terrier"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="mediumengines" id="chkLV-T30" checked>LV-T30<br>"Reliant"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="mediumengines" id="chkLV-T45" checked>LV-T45<br>"Swivel"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="mediumengines" id="chkMk-55" checked>Mk-55<br>"Thud"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="mediumengines" id="chkLV-N" checked>LV-N<br>"Nerv"&nbsp;<span data-toggle="tooltip" title="Assumed to be paired with liquid fuel-only tanks that have a full-to-dry mass ratio of 8 (very close to Mk2 and Mk3 fuselages)." data-html="true" data-placement="bottom" class="glyphicon glyphicon-info-sign" style="font-size: 14px;"></span></label>
+            </div>            
+            <div class="checkbox">
+              <label><input type="checkbox" name="mediumengines" id="chkCR-7" checked>CR-7<br>RAPIER&nbsp;<span data-toggle="tooltip" title="Operating in closed-cycle (rocket) mode." data-html="true" data-placement="bottom" class="glyphicon glyphicon-info-sign" style="font-size: 14px;"></span></label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="mediumengines" id="chkT-1" checked>T-1<br>"Aerospike"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="mediumengines" id="chkRE-I2" checked>RE-I2<br>"Skiff"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="mediumengines" id="chkRE-J10" checked>RE-J10<br>"Wolfhound"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="mediumengines" id="chkRK-7" checked>RK-7<br>"Kodiak"</label>
+            </div>
+          </div>
+        </form>
+      </div>
+      
+      <!-- Heavy engines -->
+      <div class="col-sm-3 col-md-3 col-lg-3">
+        <form class="form-horizontal">
+          <label>Heavy</label><br>
+          <button type="button" class="btn btn-default btn-xs" onClick="toggleboxes('heavyengines')">Toggle all</button>
+          <div class="input-group">
+            <div class="checkbox">
+              <label><input type="checkbox" name="heavyengines" id="chkRE-L10" checked>RE-L10<br>"Poodle"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="heavyengines" id="chkRE-I5" checked>RE-I5<br>"Skipper"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="heavyengines" id="chkKS-25" checked>KS-25<br>"Vector"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="heavyengines" id="chkRE-M3" checked>RE-M3<br>"Mainsail"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="heavyengines" id="chkKR-2L" checked>KR-2L<br>"Rhino"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="heavyengines" id="chkKR-1x2" checked>KR-1x2<br>"Twin Boar"&nbsp;<span data-toggle="tooltip" title="The mass of this engine is taken to be 6.5 tonnes. The masses of the propellant (32 t) and corresponding tank (4 t) are included separately in the calculation." data-html="true" data-placement="bottom" class="glyphicon glyphicon-info-sign" style="font-size: 14px;"></span></label>
+            </div> 
+            <div class="checkbox">
+              <label><input type="checkbox" name="heavyengines" id="chkKS-25x4" checked>KS-25x4<br>"Mammoth"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="heavyengines" id="chkKE-1" checked>KE-1<br>"Mastodon"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="heavyengines" id="chkLV-T91" checked>LV-T91<br>"Cheetah"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="heavyengines" id="chkLV-TX87" checked>LV-TX87<br>"Bobcat"</label>
+            </div>
+          </div>
+        </form>     
+      </div>
+      
+      <!-- Light engines -->
+      <div class="col-sm-3 col-md-3 col-lg-3">
+        <form class="form-horizontal">
+          <label>Light</label><br>
+          <button type="button" class="btn btn-default btn-xs" onClick="toggleboxes('lightengines')">Toggle all</button>
+          <div class="input-group">
+             <div class="checkbox">
+              <label><input type="checkbox" name="lightengines" id="chkLV-1" checked>LV-1<br>"Ant"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="lightengines" id="chkLV-1R" checked>LV-1R<br>"Spider"</label>
+            </div>      
+            <div class="checkbox">
+              <label><input type="checkbox" name="lightengines" id="chk48-7S" checked>48-7S<br>"Spark"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="lightengines" id="chk24-77" checked>24-77<br>"Twitch"</label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" name="lightengines" id="chkRV-1" checked>RV-1<br>"Cub"</label>
+            </div>
+          </div>
+        </form>     
+      </div>
+      
+      <!-- Exotic engines -->
+      <div class="col-sm-3 col-md-3 col-lg-3">
+        <form class="form-horizontal">
+          <label>Exotic</label><br>
+          <button type="button" class="btn btn-default btn-xs" onClick="toggleboxes('exoticengines')">Toggle all</button>
+          <div class="input-group">
+            <div class="checkbox">
+              <label><input type="checkbox" name="exoticengines" id="chkO-10" checked>O-10<br>"Puff"&nbsp;<span data-toggle="tooltip" title="Assumed to be paired with RCS tanks that have a full-to-dry mass ratio of 7 (rough average for stock tanks)." data-html="true" data-placement="bottom" class="glyphicon glyphicon-info-sign" style="font-size: 14px;"></span></label>
+            </div>
+            <div style="border: 1px solid rgba(0, 0, 0, 0.3); padding-left: 5px; padding-right: 5px; border-radius: 5px;">
+            <div class="checkbox">
+              <label><input type="checkbox" name="exoticengines" id="chkIX-6315" checked onChange="changeDawnChk()">IX-6315<br>"Dawn"<span data-toggle="tooltip" title="Assumed to be paired with xenon tanks that have a full-to-dry mass ratio of 2.3 (about average for stock tanks)." data-html="true" data-placement="bottom" class="glyphicon glyphicon-info-sign" style="font-size: 14px;"></span></label>
+            </div>
+            <div class="checkbox">
+              <label><input type="checkbox" id="chkDawnSP" checked>include<br>panels&nbsp;<span data-toggle="tooltip" title="Adds 100 kg per engine to roughly account for the mass of solar panels needed to continuously operate the engine at Kerbin's distance from the Sun." data-html="true" data-placement="bottom" class="glyphicon glyphicon-info-sign" style="font-size: 14px;"></span></label>
+            </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      
+      </div>
+
+    </div>
+
+    <!----------------------------------------------------------------->
+
+    <div class="row">
+    
+      <div class="col-sm-8 col-md-8 col-lg-8">
+    
+        <!-- DRAWING CANVAS -->
+
+        <canvas id="myCanvas" width="760" height="650" resize style="cursor: crosshair"></canvas>
+
+        <!-- CHART CONTROLS -->
+        
+        <div id="controls" style="visibility: hidden;">
+      
+        <label id="lblVar1ZoomGroup" for="var1zoomGrp"></label>
+        <div class="btn-group btn-group" role="group" id="var1zoomGrp">
+          <button id="var1ZoomIn" type="button" class="btn btn-default" onClick="zoomAction('in','var1')"><i class="glyphicon glyphicon-plus"></i></button>
+          <button id="var1ZoomOut" type="button" class="btn btn-default" onClick="zoomAction('out','var1')"><i class="glyphicon glyphicon-minus"></i></button>
+        </div>
+
+        &nbsp;&nbsp;
+        <label id="lblVar2ZoomGroup"  for="var2zoomGrp"></label>
+        <div class="btn-group btn-group" role="group" id="var2zoomGrp">
+          <button id ="var2ZoomIn" type="button" class="btn btn-default" onClick="zoomAction('in','var2')"><i class="glyphicon glyphicon-plus"></i></button>
+          <button id ="var2ZoomOut" type="button" class="btn btn-default" onClick="zoomAction('out','var2')"><i class="glyphicon glyphicon-minus"></i></button>
+        </div>     
+
+        &nbsp;&nbsp;
+        <label for="recallGrp">Recall ranges</label>
+        <div class="btn-group btn-group" role="group" id="recallGrp">
+          <button id="recallBack" class="btn btn-default" disabled="disabled" onClick="recallSettings(-1)"><span class="glyphicon glyphicon-arrow-left"></span></button>
+          <button id="recallForward" class="btn btn-default" disabled="disabled" onClick="recallSettings(+1)"><span class="glyphicon glyphicon-arrow-right"></span></button>
+        </div>
+ 
+        &nbsp;&nbsp;<a href="#" id="downloader" onClick="saveCanvas()" download="test.png"><button id="savebutton" class="btn btn-primary">Save chart</button></a>
+
+        <button class="btn btn-default" type="button" data-toggle="collapse" data-target="#controlsHelpArea" aria-expanded="false" aria-controls="collapseExample">
+          <span class="glyphicon glyphicon-question-sign" style="font-size: 18px;"></span>
+        </button>
+
+        <!-- Collapsible tooltip -->
+        <div class="collapse" id="controlsHelpArea">
+          <br>
+          <div class="well">
+            Chart interactivity:
+            <ul>
+            <li><strong>Mouse over</strong> the chart to see additional details about the point under the mouse in the right-hand panel.</li>
+            <li><strong>Click</strong> on the chart to lock the details panel to a specific point in the chart; click again to unlock.</li>
+            <li><strong>Click-and-drag</strong> to pan the currently displayed view; the chart will be recomputed with the new ranges.</li>
+            <li><strong>Hold</strong> the <strong>CTRL key</strong> and click-and-drag to zoom the chart in to the selected area.</li>
+            </ul>            
+            Chart controls:
+            <ul>
+            <li>Use <strong>[variable] range</strong> buttons to (+) shrink (zoom-in) (+) or (-) expand (zoom-out) the ranges of the variables shown.</li>
+            <li><strong>Recall ranges</strong> allows to go back and forward between past range settings.</li>
+            <li><strong>Save chart</strong> to save the current chart as a png image.</li>
+            </ul>
+          </div>
+        </div>
+
+        </div>
+
+      </div>
+
+      <div class="col-sm-12 col-md-5 col-lg-4">
+
+        <!-- MOUSEOVER DETAILS PANEL -->
+
+        <br><br>
+        <div id="detailspane" class="panel panel-primary" style="visibility: hidden;">
+          
+          <!-- Panel Header -->
+          <div class="panel-heading">
+            <div class="panel-title" style="font-size: 18px;"><strong>Engine Analysis Details</strong><span style="float: right;"><span id="lockedTooltip" style="visibility: hidden;"><span style="font-variant: small-caps;">locked</span>&nbsp;<span data-toggle="tooltip" title="The details panel is currently locked to the highlighted location in the chart.<br>Click on the chart area again to unlock." data-html="true" data-placement="top" class="glyphicon glyphicon-question-sign" style="font-size: 14px;"></span></span></div>
+            <table style="width: 100%;">
+              <tr>
+                <td>
+                <span id="lblDetailsFixedVar" style="float: left; font-size: 16px;">&nbsp;</span>
+                <span id="lblDetailsPressure" style="float: right; font-size: 16px;">&nbsp;</span>
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          <div class="panel-body" style="padding: 8px; padding-bottom: 4px;">
+          <div class="panel-group" style="margin-bottom: 4px;">
+          
+            <!-- Values at chart location under mouse -->
+            <div class="panel panel-success">
+              <div class="panel-heading">
+              <div class="panel-title" style="font-size: 18px;">
+              <table style="width: 100%; table-layout: fixed;">
+                <tr>
+                <td><span id="lblDetailsVar1Name">&nbsp;</span><span id="lblDetailsVar1Value" style="font-weight: bold;">&nbsp;</span></td>
+                <td><span id="lblDetailsVar2Name">&nbsp;</span><span id="lblDetailsVar2Value" style="font-weight: bold;">&nbsp;</span></td>
+                </tr>
+              </table>
+              </div>
+              </div>
+            </div>
+
+            <!-- Results for Best engine -->
+            <div class="panel panel-info">
+              <div class="panel-heading">
+              <div class="panel-title">
+                <span id="lblBestEngine" style="font-weight: bold;">Best</span>
+                <span id="lblBestMass" style="float: right; font-weight: bold;"></span>
+              </div>
+              </div>
+              <div class="panel-body">
+              <table class="detailstable">             
+                <tr>
+                  <td style="width: 50%;"><strong>Payload fraction</strong></td>
+                  <td colspan="3"><span id="lblBestPayFrac">&nbsp;</span></td>
+                </tr>
+                <tr>
+                  <td style="width: 50%;"><strong>Burnout time</strong></td>
+                  <td colspan="3"><span id="lblBestBurnoutTime">&nbsp;</span></td>                
+                </tr>
+                <tr>
+                  <td style="width: 50%;"><strong>Acceleration</strong> (m/s<sup>2</sup>)</td>
+                  <td style="width: 15%;"><span id="lblBestMinAccel">&nbsp;</span></td>
+                  <td style="width: 15%;"><span id="lblBestAvgAccel">&nbsp;</span></td>
+                  <td style="width: 15%;"><span id="lblBestMaxAccel">&nbsp;</span></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td>min</td>
+                  <td>avg</td>
+                  <td>max</td>
+                </tr>
+                <tr>
+                  <td style="width: 50%;">
+                    <table style="width: 100%;">
+                    <tr><td colspan="2"><strong>Mass breakdown</strong> (t)</td></tr>
+                    <tr>
+                    <td>Payload</td>
+                    <td><span id="lblBestPayMass">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                    <td>Propellant</td>
+                    <td><span id="lblBestPropMass">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                    <td>Tankage</td>
+                    <td><span id="lblBestTankMass">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                    <td>Engines</td>
+                    <td><span id="lblBestEngMass">&nbsp;</span></td>
+                    </tr>
+                    </table>
+                  </td>
+                  <td colspan="3" style="width: 50%;">
+                    <table style="width: 100%;">
+                    <tr><td colspan="2"><strong>Burn times</strong></td></tr>
+                    <tr>
+                    <td><span id="lblBestBurnDv1">100 m/s</span></td>
+                    <td><span id="lblBestBurnTime1">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                    <td><span id="lblBestBurnDv2">200 m/s</span></td>
+                    <td><span id="lblBestBurnTime2">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                    <td><span id="lblBestBurnDv3">500 m/s</span></td>
+                    <td><span id="lblBestBurnTime3">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                    <td><span id="lblBestBurnDv4">1000 m/s</span></td>
+                    <td><span id="lblBestBurnTime4">&nbsp;</span></td>
+                    </tr>
+                    </table>                  
+                  </td>
+                </tr>
+              </table>
+              </div>
+            </div>
+
+            <!-- Results for Runner-up -->
+            <div class="panel panel-info">
+              <div class="panel-heading">
+              <div class="panel-title">
+                <span id="lblRunnerupEngine" style="font-weight: bold;">2<sup>nd</sup> place</span>
+                <span id="lblRunnerupMass" style="float: right; font-weight: bold;"></span>
+              </div>
+              </div>
+              <div class="panel-body">
+              <table class="detailstable">             
+                <tr>
+                  <td style="width: 50%;"><strong>Payload fraction</strong></td>
+                  <td colspan="3"><span id="lblRunnerupPayFrac">&nbsp;</span></td>
+                </tr>
+                <tr>
+                  <td style="width: 50%;"><strong>Burnout time</strong></td>
+                  <td colspan="3"><span id="lblRunnerupBurnoutTime">&nbsp;</span></td>                
+                </tr>
+                <tr>
+                  <td style="width: 50%;"><strong>Acceleration</strong> (m/s<sup>2</sup>)</td>
+                  <td style="width: 15%;"><span id="lblRunnerupMinAccel">&nbsp;</span></td>
+                  <td style="width: 15%;"><span id="lblRunnerupAvgAccel">&nbsp;</span></td>
+                  <td style="width: 15%;"><span id="lblRunnerupMaxAccel">&nbsp;</span></td>
+                </tr>
+                <tr>
+                  <td>&nbsp;</td>
+                  <td>min</td>
+                  <td>avg</td>
+                  <td>max</td>
+                </tr>
+                <tr>
+                  <td style="width: 50%;">
+                    <table style="width: 95%;">
+                    <tr><td colspan="2"><strong>Mass breakdown</strong></td></tr>
+                    <tr>
+                    <td>Payload</td>
+                    <td><span id="lblRunnerupPayMass">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                    <td>Propellant</td>
+                    <td><span id="lblRunnerupPropMass">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                    <td>Tankage</td>
+                    <td><span id="lblRunnerupTankMass">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                    <td>Engines</td>
+                    <td><span id="lblRunnerupEngMass">&nbsp;</span></td>
+                    </tr>
+                    </table>
+                  </td>
+                  <td colspan="3" style="width: 50%;">
+                    <table style="width: 95%;">
+                    <tr><td colspan="2"><strong>Burn times</strong></td></tr>
+                    <tr>
+                    <td><span id="lblRunnerupBurnDv1">100 m/s</span></td>
+                    <td><span id="lblRunnerupBurnTime1">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                    <td><span id="lblRunnerupBurnDv2">200 m/s</span></td>
+                    <td><span id="lblRunnerupBurnTime2">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                    <td><span id="lblRunnerupBurnDv3">500 m/s</span></td>
+                    <td><span id="lblRunnerupBurnTime3">&nbsp;</span></td>
+                    </tr>
+                    <tr>
+                    <td><span id="lblRunnerupBurnDv4">1000 m/s</span></td>
+                    <td><span id="lblRunnerupBurnTime4">&nbsp;</span></td>
+                    </tr>
+                    </table>                  
+                  </td>
+                </tr>
+              </table>
+              </div>
+            </div>
+              
+          </div>
+          </div>
+
+	      </div>
+
+      </div>
+
+    </div>
+
+  <!----------------------------------------------------------------->
+
+  <hr>
+  <h4>Acknowledgements</h4>
+
+  <ul>
+    <li>tavert's <a href="http://forum.kerbalspaceprogram.com/threads/45155-Mass-optimal-engine-type-vs-delta-V-payload-and-min-TWR">original engine charts</a> for the inspiration to create this app.</li>
+    <li>Alex Moon's <a href="http://alexmoon.github.io/ksp/">Launch Window Planner</a>, an incredibly useful tool on which most of the styling of this app is based.</li>
+    <li>Special thanks to Slashy, LittleBlueGaming, Teilnehmer, John FX, Red Iron Crown, 5thHorseman, Brotoro, cybersol, Starhawk and other members of the <a href="http://forum.kerbalspaceprogram.com/">KSP forums</a> for helpful suggestions and beta testing.</li>
+  </ul>
+
+  <p>Development: KSP Forums <a href="http://forum.kerbalspaceprogram.com/index.php?/topic/114995-web-105-optimal-engine-charts-interactive-webapp/">dev thread</a> | Github <a href="https://github.com/meithan/engine_charts">repository</a>.</p>
+
+  <p><em>Optimal Engine Charts</em> is free software licensed under the <a href="http://www.gnu.org/licenses/gpl.html">GNU General Public License v3</a>. Third-party additional software is used under the terms of the corresponding licenses. Built with <a href="http://paperjs.org/">Paper.js</a> and <a href="https://jquery.com/">jquery.js</a>. Styles by <a href="http://getbootstrap.com/">Twitter Bootstrap</a>. Icons by <a href="http://glyphicons.com/">Glyphicons</a>.</p>
+
+  <p>Copyleft <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Copyleft.svg/100px-Copyleft.svg.png" style="max-height: 14px; max-width: 14px;"> Meithan West, 2016. Some rights reserved.</p>
+
+  <p>Current version: 1.1.2</p>
+  
+  </div>
+ 
+</body>
+</html>
